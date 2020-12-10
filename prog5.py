@@ -66,13 +66,27 @@ def get_index(processes, pid):
     return -1
 
 # Rate monotonic scheduling
-def rms(processes, t, scheduling_time, w):
+def rms(num_processes, processes, t, scheduling_time, w):
     # Based on the priority, loop through all processes
     totalTime = 0
 
 
     # Run until stop or failure
     remaining_processes = [] # Store the pid
+
+    # Check if it will work
+    # Bonus
+    n = num_processes
+    threshold = n * ( 2**(1/n) - 1)
+    utilization = 0
+
+    # Exec time / Time period
+    for p in processes:
+        utilization += (processes[p]["runtime"] / processes[p]["period"])
+
+    able_to_schedule = int(utilization < threshold)
+    print("Able to schedule: ", type(able_to_schedule))
+
 
     arrivals = []
     # print(processes.items())
@@ -204,7 +218,7 @@ def rms(processes, t, scheduling_time, w):
             w.write("\n")
 
             if pFail != -1:
-                return
+                return able_to_schedule
 
         # Increment time and decrement remaining for process
         print("Time: ", totalTime)
@@ -213,6 +227,7 @@ def rms(processes, t, scheduling_time, w):
         processes[current_process]["remaining"] -= 1
         totalTime += 1
 
+    return able_to_schedule
 
 def edfs(processes, t, scheduling_time):
     # Calculate the priority based on distance to deadline is less
@@ -316,8 +331,15 @@ def main():
     p2 = copy.deepcopy(priority)
 
     scheduling_time = lcm(periods)
-    rms(p1, time_run,scheduling_time, w)
+    able_to_schedule = rms(num_processes, p1, time_run,scheduling_time, w)
+
     w.write("\n")
+
+    print("Able to schedule MAIN: ", able_to_schedule)
+    w.write( str(able_to_schedule) )
+
+    w.write("\n")
+
     edfs(p2, time_run,scheduling_time, w)
 
 
