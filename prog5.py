@@ -53,7 +53,8 @@ def setup(f):
             "remaining": p["runtime"],
             "pid": pid,
             "period": p["period"],
-            "runtime": p["runtime"]
+            "runtime": p["runtime"],
+            "failure": 0
         }
 
     return num_processes, time_run, processes, periods
@@ -102,6 +103,7 @@ def rms(num_processes, processes, t, scheduling_time, w):
     pCompleted = False
     pCompletedPID = -1
     pFail = -1
+    failureRemaining = -1
 
     while totalTime <= t:
         pArrived = False
@@ -114,42 +116,43 @@ def rms(num_processes, processes, t, scheduling_time, w):
                 print("Current time: ", totalTime)
                 print("Process: ", pid, " period: ", period)
                 arrived.append(pid)
-
+        # Set arrival flag
         if len(arrived) > 0:
             pArrived = True
 
         # Check if current process has finished / idle
         if processes[current_process]["remaining"] <= 0:
            print("Remaining: ", remaining_processes)
+           # Process has just finished
            if processes[current_process]["remaining"] == 0:
                pCompleted = True
                pCompletedPID = current_process
                print("Process ", current_process, "has finished at time ", totalTime)
-               # Current process has FINISHED, only append to completed process if remaining is 0
                # Set remaining to -1
                processes[current_process]["remaining"] = -1
 
            # Check if there are any other processes remaining
+           # If so, set new current process
            if len(remaining_processes) > 0:
                print("Getting new current process")
                current_process = remaining_processes.pop(0)
-
+        # For each process that has arrived
         for pid in arrived:
             # Check for failure
             if processes[pid]["remaining"] > 0 and totalTime != 0:
                 print("Remaining: ", processes[pid]["remaining"])
+                # Set failure PID
                 pFail = pid
+                # Set failure remaining
+                failureRemaining = processes[pid]["remaining"]
                 print("Failure")
-                # return
 
             # Reset if no failure
-            processes[pid]["deadline"] = totalTime + processes[pid]["period"]
-            processes[pid]["current"] += 1
-            processes[pid]["remaining"] = processes[pid]["runtime"]
+            else:
+                processes[pid]["deadline"] = totalTime + processes[pid]["period"]
+                processes[pid]["current"] += 1
+                processes[pid]["remaining"] = processes[pid]["runtime"]
 
-            # Check if process has run for necessary time
-            print("Before check for finish")
-            print(current_process, ": ", processes[current_process]["remaining"])
             # Check if current process needs to change
             if processes[pid]["period"] < processes[current_process]["period"]:
                 print("Process ", pid, " is replacing ", current_process, " as current process")
@@ -157,9 +160,10 @@ def rms(num_processes, processes, t, scheduling_time, w):
                 # If current process has yet to complete, add to back of remaining
                 if processes[current_process]["remaining"] > 0:
                     remaining_processes.append(current_process)
+
                 # If it has already completed, don't do anything
-                if processes[current_process]["remaining"] <= 0:
-                    print("Process ", current_process, " already finished")
+                # if processes[current_process]["remaining"] <= 0:
+                #     print("Process ", current_process, " already finished")
 
 
                 current_process = pid
@@ -198,7 +202,7 @@ def rms(num_processes, processes, t, scheduling_time, w):
 
                 for pid in arrived:
                     if pFail == pid:
-                        w.write(' P' + str(pid) + '-' + str(processes[pid]["current"]) + " FAIL")
+                        w.write(' P' + str(pid) + '-' + str(processes[pid]["current"]+1) + " FAIL")
                     else:
                         w.write(' P' + str(pid) + '-' + str(processes[pid]["current"]))
 
@@ -211,8 +215,19 @@ def rms(num_processes, processes, t, scheduling_time, w):
             w.write("\n")
 
             # Write all remaining processes
+            iter = 0
             for idx, p in enumerate(remaining_processes):
-                w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]) + " (" + str(processes[p]["period"]) + ", " +  str(processes[p]["remaining"]) + ")")
+                if pFail == p and iter == 0:
+                    # Write the previous
+                    w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]) + " (" + str(processes[p]["period"]) + ", " +  str(failureRemaining) + ")")
+                    iter += 1
+                elif pFail == p and iter == 1:
+                    # Write the previous
+                    w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]+1) + " (" + str(processes[p]["period"]) + ", " +  str(processes[p]["runtime"]) + ")")
+                    iter += 1
+                else:
+                    w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]) + " (" + str(processes[p]["period"]) + ", " +  str(processes[p]["remaining"]) + ")")
+
                 if idx + 1 != len(remaining_processes):
                     w.write(" ")
             w.write("\n")
@@ -229,11 +244,23 @@ def rms(num_processes, processes, t, scheduling_time, w):
 
     return able_to_schedule
 
+# Sort according to earliest deadline
+def edfs_sort(pid, processes):
+    if processes[pid]["failure"] == 1:
+        print("Failure PID ", pid)
+        print("Runtime: ", processes[pid]["runtime"])
+        deadline = processes[pid]["deadline"] + processes[pid]["runtime"]
+        print("Deadline for failure: ", deadline)
+        return deadline
+    else:
+        return processes[pid]["deadline"]
+
 def edfs(processes, t, scheduling_time, w):
     # Calculate the priority based on distance to deadline is less
     # Based on the priority, loop through all processes
     totalTime = 0
     remaining_processes = [] # Store the pid
+    print("EDFS")
 
     arrivals = []
     for p in processes:
@@ -242,10 +269,15 @@ def edfs(processes, t, scheduling_time, w):
     current_process = list(processes.keys())[0]
 
     while totalTime <= t:
+        print(totalTime)
+        print(current_process)
+        print(remaining_processes)
         pArrived = False
         pCompleted = False
 
         pFail = -1
+        failureRemaining = -1
+        failureDeadline = -1
         pCompletedPID = -1
 
         arrived = []
@@ -275,20 +307,37 @@ def edfs(processes, t, scheduling_time, w):
         # Check if they have completed their stuff yet
         for pid in arrived:
             print("Process ", pid, " arrived at time ", totalTime)
+            # FAILURE
             if processes[pid]["remaining"] > 0 and totalTime != 0:
+                processes[pid]["failure"] = 1
+
+                failureDeadline = processes[pid]["deadline"]
+                failureRemaining = processes[pid]["remaining"]
                 pFail = pid
+
+                # Problem is that when we sort, it will have the same deadline as previous one..
+                new_deadline = totalTime + processes[pid]["runtime"]
+                new_remaining = processes[pid]["runtime"]
+                remaining_processes.append(pid)
 
             else:
                 # Reset before appending to remaining
                 processes[pid]["deadline"] = totalTime + processes[pid]["period"]
                 processes[pid]["current"] += 1
                 processes[pid]["remaining"] = processes[pid]["runtime"]
-                remaining_processes.append(pid)
+
+                if pid is not current_process:
+                    remaining_processes.append(pid)
 
         # If new processes arrived, need to sort by closest deadline
         if len(arrived) > 0:
-            remaining_processes.sort(key=lambda pid: processes[pid]["deadline"])
+            # Create custom sort class to handle when fail case
+            remaining_processes.sort(key=lambda pid: edfs_sort(pid, processes))
 
+        if pFail != -1:
+            print("Remaining after sort: ", remaining_processes)
+
+        # Check sorting cond later
         for pid in remaining_processes:
             if processes[pid]["deadline"] < processes[current_process]["deadline"] or processes[current_process]["remaining"] == -1:
                 print("Process ", pid, " is replacing ", current_process, " as current process")
@@ -303,9 +352,8 @@ def edfs(processes, t, scheduling_time, w):
                 print(remaining_processes)
                 current_process = pid
                 remaining_processes.remove(current_process)
+                remaining_processes.sort(key=lambda pid: processes[pid]["deadline"])
 
-        if current_process in remaining_processes:
-            remaining_processes.remove(current_process)
         if pArrived or pCompleted:
             # Current time
             w.write( str(totalTime) + "\n" )
@@ -328,7 +376,7 @@ def edfs(processes, t, scheduling_time, w):
 
                 for pid in arrived:
                     if pFail == pid:
-                        w.write(' P' + str(pid) + '-' + str(processes[pid]["current"]) + " FAIL")
+                        w.write(' P' + str(pid) + '-' + str(processes[pid]["current"]+1) + " FAIL")
                     else:
                         w.write(' P' + str(pid) + '-' + str(processes[pid]["current"]))
 
@@ -341,11 +389,39 @@ def edfs(processes, t, scheduling_time, w):
             w.write("\n")
 
             # Write all remaining processes
+            iter = 0
+
+            # Check if the failure is in the remaining processes twice
+            # If it is only there once, then only need to do one check
+            # Check # times process failure is in remaining
+            occurences = remaining_processes.count(pFail)
+
+            print("About to print: ", remaining_processes)
             for idx, p in enumerate(remaining_processes):
-                w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]) + " (" + str(processes[p]["deadline"]) + ", " +  str(processes[p]["remaining"]) + ")")
+                if occurences == 2 and pFail == p:
+                    if iter == 0:
+                        # Write the previous
+                        # Check which current should be here
+                        w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]) + " (" + str(processes[p]["deadline"]) + ", " +  str(failureRemaining) + ")")
+                        iter += 1
+                    if iter == 1:
+                        # Write the previous
+                        w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]+1) + " (" + str(processes[p]["deadline"] + processes[p]["runtime"]) + ", " +  str(processes[p]["runtime"]) + ")")
+                        iter += 1
+                if occurences == 1 and pFail == p:
+                    w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]+1) + " (" + str(processes[p]["deadline"] + processes[p]["runtime"]) + ", " +   str(processes[p]["runtime"]) + ")")
+                    iter += 1
+                else:
+                    w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]) + " (" + str(processes[p]["deadline"]) + ", " +  str(processes[p]["remaining"]) + ")")
+
+
                 if idx + 1 != len(remaining_processes):
                     w.write(" ")
+
             w.write("\n")
+
+        if pFail != -1:
+            return
 
         # Run this process once
         processes[current_process]["remaining"] = processes[current_process]["remaining"]-1
