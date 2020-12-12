@@ -400,19 +400,19 @@ def edfs(processes, t, scheduling_time, w):
             for idx, p in enumerate(remaining_processes):
                 if occurences == 2 and pFail == p:
                     if iter == 0:
-                        # Write the previous
+                        # Write the current
                         # Check which current should be here
                         w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]) + " (" + str(processes[p]["deadline"]) + ", " +  str(failureRemaining) + ")")
                         iter += 1
                     if iter == 1:
-                        # Write the previous
-                        w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]+1) + " (" + str(processes[p]["deadline"] + processes[p]["runtime"]) + ", " +  str(processes[p]["runtime"]) + ")")
+                        # Write the fail
+                        w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]+1) + " (" + str(processes[p]["deadline"] + processes[p]["deadline"]) + ", " +  str(processes[p]["runtime"]) + ")")
                         iter += 1
                 if occurences == 1 and pFail == p:
-                    w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]+1) + " (" + str(processes[p]["deadline"] + processes[p]["runtime"]) + ", " +   str(processes[p]["runtime"]) + ")")
+                    w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]+1) + " (" + str(processes[p]["deadline"] + processes[p]["deadline"]) + ", " +   str(processes[p]["runtime"]) + ")")
                     iter += 1
                 else:
-                    w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]) + " (" + str(processes[p]["deadline"]) + ", " +  str(processes[p]["remaining"]) + ")")
+                    w.write("P"+str(processes[p]["pid"])+"-"+str(processes[p]["current"]) + " (" + str(processes[p]["deadline"]) + ", " +  str(processes[p]["deadline"]) + ")")
 
 
                 if idx + 1 != len(remaining_processes):
