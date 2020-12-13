@@ -109,7 +109,7 @@ def rms(num_processes, processes, t, w):
 
 
         # Sort by smallest period
-        remaining_processes.sort(key=lambda p: p["period"])
+        remaining_processes.sort(key=lambda p: (p["period"], p["pid"]))
 
 
         # Write arrivals to file
@@ -272,7 +272,7 @@ def edfs(num_processes, processes, t, w):
 
 
         # Sort by smallest period
-        remaining_processes.sort(key=lambda p: p["deadline"])
+        remaining_processes.sort(key=lambda p: (p["deadline"], p["pid"]))
 
 
         # Write arrivals to file
@@ -304,7 +304,6 @@ def edfs(num_processes, processes, t, w):
             w.write('\n')
 
             # Write current process
-            # DEADLINE OR PERIOD???
             if current_process["remaining"] != -1:
                 w.write("P"+str(current_process["pid"])+"-"+str(current_process["current"]) + " (" + str(current_process["deadline"]) + ", " +  str(current_process["remaining"]) + ")")
 
@@ -404,12 +403,9 @@ def main():
 
     able_to_schedule = rms(num_processes, p1, time_run, w)
 
-    w.write("\n")
-
-    # print("Able to schedule MAIN: ", able_to_schedule)
-    # w.write( str(able_to_schedule) )
-    #
     # w.write("\n")
+    # w.write( str(able_to_schedule) )
+    w.write("\n")
 
     edfs(num_processes, p2, time_run, w)
 
