@@ -61,9 +61,7 @@ def rms(num_processes, processes, t, w):
         # Check if current process has finished / idle
         if current_process["remaining"] == 0:
             pCompleted = True
-            print("Current process completed")
             completed_processes.append( copy.deepcopy(current_process) )
-            print("Processes completed: ", completed_processes)
             current_process["remaining"] = -1
             idle = True
 
@@ -81,15 +79,10 @@ def rms(num_processes, processes, t, w):
             if res != False:
                 # A previous object with this pid still exists and has not finished
                 # Failure
-                print("Fail at time ", totalTime)
-
-                print("Process: ", res)
                 pFail = True
 
             elif current_process["pid"] == pid and idle == False and totalTime is not 0:
                 # Current process is not idle so it is a failure
-                print("Curr process fails at time ", totalTime)
-                print("Process: ", res)
                 pFail = True
 
             # Add to remaining
@@ -109,9 +102,7 @@ def rms(num_processes, processes, t, w):
             # Check if incoming period is < current process period
             elif obj["period"] < current_process["period"]:
                 # Swap
-                print("Swapping time ", totalTime)
                 remaining_processes.append(copy.deepcopy(current_process))
-                print("Remaining: ", remaining_processes)
                 current_process = copy.deepcopy(new_obj)
             else:
                 remaining_processes.append(copy.deepcopy(new_obj))
@@ -124,11 +115,6 @@ def rms(num_processes, processes, t, w):
         # Write arrivals to file
         if pCompleted or pArrived:
             # Time
-            print("Time: ", totalTime)
-            print("Completed: ", pCompleted)
-            print("Processes completed: ", completed_processes)
-            print("Arrived: ", pArrived)
-            print("Remaining: ", remaining_processes)
             w.write(str(totalTime))
             w.write("\n")
 
@@ -177,10 +163,171 @@ def rms(num_processes, processes, t, w):
         # Increment time and decrement remaining for process
         current_process["remaining"] -= 1
         totalTime += 1
-
     return able_to_schedule
 
+# Earliest deadline first
+def edfs(num_processes, processes, t, w):
+    # Based on the priority, loop through all processes
+    totalTime = 0
 
+    # Run until stop or failure
+    remaining_processes = [] # Store the pid
+
+    # Check if it will work
+    # Bonus
+    n = num_processes
+    threshold = n * ( 2**(1/n) - 1)
+    utilization = 0
+
+    # Exec time / Time period
+    for p in processes:
+        utilization += p["runtime"] / p["period"]
+
+    able_to_schedule = int(utilization < threshold)
+    # print("Able to schedule: ", type(able_to_schedule))
+
+
+    arrivals = []
+    # print(processes.items())
+    # processes = sorted(processes.items(), key=lambda x: x['period'])
+
+    for p in processes:
+        arrivals.append( (p["pid"], p["period"]) )
+
+    current_process = copy.deepcopy(processes[0])
+
+    pArrived = False
+    pCompleted = False
+    completed_processes = []
+    processes_arrived = []
+    pFail = False
+    idle = False
+
+    while totalTime <= t:
+        arrived = []
+        completed_processes = []
+        processes_arrived = []
+        pArrived = False
+        pCompleted = False
+        pFail = False
+
+        # Get all arrivals for this time
+        for pid, period in arrivals:
+            # Process arrived
+            if totalTime % period == 0:
+                arrived.append(pid)
+
+        # Set arrival flag
+        if len(arrived) > 0:
+            pArrived = True
+
+        # Check if current process has finished / idle
+        if current_process["remaining"] == 0:
+            pCompleted = True
+            completed_processes.append( copy.deepcopy(current_process) )
+            current_process["remaining"] = -1
+            idle = True
+
+        if current_process["remaining"] == -1 and len(remaining_processes) > 0:
+           # Check if there are any other processes remaining
+           # If so, set new current process
+           current_process = remaining_processes.pop(0)
+           idle = False
+
+        # For each process that has arrived
+        for pid in arrived:
+            # Get first item with this pid in remaining processes
+            res = next((item for item in remaining_processes if item["pid"] == pid), False)
+
+            if res != False:
+                # A previous object with this pid still exists and has not finished
+                # Failure
+                pFail = True
+
+            elif current_process["pid"] == pid and idle == False and totalTime is not 0:
+                # Current process is not idle so it is a failure
+                pFail = True
+
+            # Add to remaining
+            obj = next((item for item in processes if item["pid"] == pid))
+            new_obj = { "current": obj["current"], "deadline": totalTime + obj["period"], "pid": pid, "period": obj["period"],"runtime": obj["runtime"],"remaining": obj["runtime"]}
+            processes_arrived.append(copy.deepcopy(new_obj))
+            obj["current"] += 1
+
+            # Don't add the current PID on time 0
+            if totalTime == 0 and pid == current_process["pid"]:
+                continue
+
+            # Check if current process is idle
+            if idle == True:
+                current_process = copy.deepcopy(new_obj)
+                idle = False
+            # Check if incoming period is < current process period
+            elif new_obj["deadline"] < current_process["deadline"]:
+                # Swap
+                remaining_processes.append(copy.deepcopy(current_process))
+                current_process = copy.deepcopy(new_obj)
+            else:
+                remaining_processes.append(copy.deepcopy(new_obj))
+
+
+        # Sort by smallest period
+        remaining_processes.sort(key=lambda p: p["deadline"])
+
+
+        # Write arrivals to file
+        if pCompleted or pArrived:
+            # Time
+            w.write(str(totalTime))
+            w.write("\n")
+
+            # Completed processes
+            for i,p in enumerate(completed_processes):
+                w.write("F: P"+ str(p["pid"])+"-"+str(p["current"]))
+                if i+1 != len(completed_processes):
+                    w.write(" ")
+
+            # Separating space for completed processes and arrivals
+            if pCompleted and pArrived:
+                w.write(" ")
+
+            # Write all arrivals
+            if pArrived:
+                w.write("A:")
+
+                for p in processes_arrived:
+                    w.write(' P' + str(p["pid"]) + '-' + str(p["current"]))
+
+                if pFail == True:
+                    w.write(" FAIL")
+
+            w.write('\n')
+
+            # Write current process
+            # DEADLINE OR PERIOD???
+            if current_process["remaining"] != -1:
+                w.write("P"+str(current_process["pid"])+"-"+str(current_process["current"]) + " (" + str(current_process["deadline"]) + ", " +  str(current_process["remaining"]) + ")")
+
+            w.write("\n")
+
+            # Write all remaining processes
+            iter = 0
+            for idx, p in enumerate(remaining_processes):
+                w.write("P"+str(p["pid"])+"-"+str(p["current"]) + " (" + str(p["deadline"]) + ", " +  str(p["remaining"]) + ")")
+
+                if idx + 1 != len(remaining_processes):
+                    w.write(" ")
+
+            w.write("\n")
+
+            if pFail == True:
+                return 1
+
+
+        # Increment time and decrement remaining for process
+        current_process["remaining"] -= 1
+        totalTime += 1
+    return able_to_schedule
 
 
 
@@ -264,7 +411,7 @@ def main():
     #
     # w.write("\n")
 
-    # edfs(p2, time_run, w)
+    edfs(num_processes, p2, time_run, w)
 
 
 
